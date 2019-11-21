@@ -1,0 +1,6 @@
+current_experiment/
+*.pyc
+.DS_STORE
+*.xml
+.idea/
+data_memmap
