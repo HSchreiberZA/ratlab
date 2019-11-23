@@ -23,6 +23,7 @@
 # ======================================================================[ Setup ]
 import os
 import sys
+import time
 import types
 import string
 
@@ -36,8 +37,8 @@ import random as rnd
 
 # OpenGL
 from OpenGL.GLUT import *
-from OpenGL.GLU  import *
-from OpenGL.GL   import *
+from OpenGL.GLU import *
+from OpenGL.GL import *
 
 # utilities / own
 from util.setup import *
@@ -61,18 +62,11 @@ class Wall(Freezeable):
         self.texture = 0 if texture == None else texture
         self.offset = 0.0 if offset == None else offset
 
-    # check wether a given point lies in front of the wall
-    def facingFront(self, pos):
-        if numpy.dot(pos - (self.vec_from + 0.5 * wall_vec), self.normal) < 0.0:
-            return False
-        else:
-            return True
-
     # check wether a given point lies closer to the wall than the allowed offset
     def proximityAlert(self, pos):
         wall_vec = self.vec_to - self.vec_from
         mu = (pos[0] - self.vec_from[0]) * (self.vec_to[0] - self.vec_from[0]) + (pos[1] - self.vec_from[1]) * (
-                    self.vec_to[1] - self.vec_from[1])
+                self.vec_to[1] - self.vec_from[1])
         mu /= wall_vec[0] ** 2 + wall_vec[1] ** 2
         if mu < 0.0:
             return numpy.sqrt((pos - self.vec_from)[0] ** 2 + (pos - self.vec_from)[1] ** 2) < self.offset
@@ -94,7 +88,7 @@ class Wall(Freezeable):
         xy = self.vec_to - self.vec_from
         uv = pos_new - pos_old
         l = (pos_old[1] + (self.vec_from[0] * uv[1] - pos_old[0] * uv[1]) / uv[0] - self.vec_from[1]) / (
-                    (1.0 - (xy[0] * uv[1]) / (uv[0] * xy[1])) * xy[1])
+                (1.0 - (xy[0] * uv[1]) / (uv[0] * xy[1])) * xy[1])
         m = (self.vec_from[0] + l * xy[0] - pos_old[0]) / uv[0]
         # check C: intersection lies between old & new position, and also within wall segment limits
         if l >= 0 and l <= 1.0 and \
@@ -143,7 +137,8 @@ class Textures:
                  min(numpy.random.random() + 0.2, 1.0)])
         self.sketch_color[0] = numpy.array([0.0, 0.0, 0.8])  # one default color
 
-    def load(self, filename, ):
+    @staticmethod
+    def load(filename, ):
         mipmapping = False
         # open image
         src_img = img.open(filename)
@@ -182,6 +177,82 @@ class Textures:
                          img_str)  # texture data
         # return handle id
         return int(img_id)
+
+
+# ================================================================[ A Whole New World Class ]
+
+class NewWorld:
+    def __init__(self, control, controller, floor_plan, grid_size):
+        self.__controller__ = controller
+        self.__ctrl__ = control
+        # controller.start(player_screen_width=320)
+        controller.start()
+
+        # FloorPlan203 == 208
+        # FloorPlan201
+        # FloorPlan205
+        # FloorPlan209 is cool
+        # FloorPlan230
+
+        # FloorPlan207 is like 202
+        controller.reset(floor_plan)
+        controller.step(dict(action='Initialize', gridSize=grid_size))
+
+    @staticmethod
+    def angle_between(p1, p2):
+        angle = math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+        angle = angle * (180 / math.pi)
+        if angle < 0:
+            return 360 - (-angle)
+        return angle
+
+    def valid_step(self, pos, pos_new):
+        dist = self.angle_between(pos, pos_new)
+        current_rotation = self.__controller__.step(dict(action='Crouch')).metadata['agent']['rotation']['y']
+
+        self.__controller__.step(dict(action='Rotate', rotation=dist))
+        event = self.__controller__.step(dict(action='MoveAhead'))
+        #event = self.__controller__.step(dict(action='TeleportFull', x=pos_new[0], y=0.9026567, z=pos_new[1], rotation=0, horizon=0.0))
+        position_dict = event.metadata['agent']['position']
+        position = numpy.array([position_dict['x'], position_dict['z']])
+        if not event.metadata['lastActionSuccess']:
+            self.__controller__.step(dict(action='Rotate', rotation=current_rotation))
+            return False, position
+        return True, position
+
+    def sketch_path(self, path):
+        glColor(self.__ctrl__.color_rat_path)
+        glBegin(GL_POINTS)
+        for p in path:
+            glVertex3f(p[0], p[1], def_MARKER_HEIGHT)
+        glEnd()
+
+    def sketch_arrow(self, pos_x, pos_y, dir_x, dir_y, color=None):
+        # color
+        if color is None:
+            glColor(0.6, 0.0, 0.0)
+        elif color == 'red':
+            glColor(0.8, 0.0, 0.0)
+        elif color == 'green':
+            glColor(0.0, 0.6, 0.0)
+        elif color == 'blue':
+            glColor(0.0, 0.0, 0.8)
+        elif color == 'grey':
+            glColor(0.4, 0.4, 0.4)
+        # normalized direction x2
+        dir_xn = (dir_x / numpy.sqrt(dir_x ** 2 + dir_y ** 2)) * 2.0
+        dir_yn = (dir_y / numpy.sqrt(dir_x ** 2 + dir_y ** 2)) * 2.0
+        # draw
+        glBegin(GL_LINES)
+        glVertex3f(pos_x + dir_xn * 3.0, pos_y + dir_yn * 3.0, def_MARKER_HEIGHT)
+        glVertex3f(pos_x + dir_yn, pos_y - dir_xn, def_MARKER_HEIGHT)
+        glVertex3f(pos_x + dir_yn, pos_y - dir_xn, def_MARKER_HEIGHT)
+        glVertex3f(pos_x - dir_yn, pos_y + dir_xn, def_MARKER_HEIGHT)
+        glVertex3f(pos_x - dir_yn, pos_y + dir_xn, def_MARKER_HEIGHT)
+        glVertex3f(pos_x + dir_xn * 3.0, pos_y + dir_yn * 3.0, def_MARKER_HEIGHT)
+        glVertex3f(pos_x, pos_y, def_MARKER_HEIGHT)
+        glVertex3f(pos_x - dir_xn * 2.0, pos_y - dir_yn * 2.0, def_MARKER_HEIGHT)
+        glEnd()
 
 
 # ================================================================[ World Class ]
@@ -240,7 +311,6 @@ class World:
         # build star maze ( dim := [ <arms>, <arm_width>, <arm_length>, <arm_height> ] )
         elif control.type == 'star':
             # constants
-            RAD2DEG = 180.0 / math.pi
             DEG2RAD = math.pi / 180.0
             # angles
             arm_dir = 270.0
@@ -394,7 +464,7 @@ class World:
 
     def validStep(self, pos_old, pos_new):
         # check 1: new position still lies in the valid region
-        if self.validPosition(pos_new) == False:
+        if not self.validPosition(pos_new):
             return False
         # check 2: step does not cross any wall segments
         for w in self.__walls__:
@@ -544,40 +614,6 @@ class World:
                 if x % 50 == 0: drawNumber(x, (x, l[1] - 10))
             for y in range(l[1], l[3], 10):
                 if y % 50 == 0: drawNumber(y, (l[0] - 5 * len(str(y)), y))
-
-    def sketchPath(self, path):
-        glColor(self.__ctrl__.color_rat_path)
-        glBegin(GL_POINTS)
-        for p in path:
-            glVertex3f(p[0], p[1], def_MARKER_HEIGHT)
-        glEnd()
-
-    def sketchArrow(self, pos_x, pos_y, dir_x, dir_y, color=None):
-        # color
-        if color == None:
-            glColor(0.6, 0.0, 0.0)
-        elif color == 'red':
-            glColor(0.8, 0.0, 0.0)
-        elif color == 'green':
-            glColor(0.0, 0.6, 0.0)
-        elif color == 'blue':
-            glColor(0.0, 0.0, 0.8)
-        elif color == 'grey':
-            glColor(0.4, 0.4, 0.4)
-        # normalized direction x2
-        dir_xn = (dir_x / numpy.sqrt(dir_x ** 2 + dir_y ** 2)) * 2.0
-        dir_yn = (dir_y / numpy.sqrt(dir_x ** 2 + dir_y ** 2)) * 2.0
-        # draw
-        glBegin(GL_LINES)
-        glVertex3f(pos_x + dir_xn * 3.0, pos_y + dir_yn * 3.0, def_MARKER_HEIGHT)
-        glVertex3f(pos_x + dir_yn, pos_y - dir_xn, def_MARKER_HEIGHT)
-        glVertex3f(pos_x + dir_yn, pos_y - dir_xn, def_MARKER_HEIGHT)
-        glVertex3f(pos_x - dir_yn, pos_y + dir_xn, def_MARKER_HEIGHT)
-        glVertex3f(pos_x - dir_yn, pos_y + dir_xn, def_MARKER_HEIGHT)
-        glVertex3f(pos_x + dir_xn * 3.0, pos_y + dir_yn * 3.0, def_MARKER_HEIGHT)
-        glVertex3f(pos_x, pos_y, def_MARKER_HEIGHT)
-        glVertex3f(pos_x - dir_xn * 2.0, pos_y - dir_yn * 2.0, def_MARKER_HEIGHT)
-        glEnd()
 
     def sketchMarker(self, pos_x, pos_y, size=None, color=None):
         """

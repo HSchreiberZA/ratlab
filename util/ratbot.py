@@ -25,6 +25,7 @@
 # math
 import math
 import random as rnd
+import ai2thor.controller
 
 import numpy  as np
 
@@ -47,12 +48,12 @@ np.seterr(divide='ignore')  # ignore 'division by zero' errors (occur on path re
 
 class RatBot(Freezeable):
     """
-    Class to set up and control a virtual rodend.
+    Class to set up and control a virtual rodent.
     """
 
     # ----------------------------------------------------------[ Construction ]
 
-    def __init__(self, pos, control):
+    def __init2__(self, pos, control):
         """
         Constructor. Initializes the rat bot.
         pos    : Valid 2D position within the simulation world.
@@ -65,7 +66,7 @@ class RatBot(Freezeable):
         self.__path__ = []
         self.__path__.append(pos)
         # follow path if specified via file
-        if control.setup.rat.path != None:
+        if control.setup.rat.path is not None:
             f = open('./current_experiment/' + control.setup.rat.path)
             control.setup.rat.path = np.zeros([sum(1 for l in f), 2])
             f.seek(0)
@@ -78,9 +79,30 @@ class RatBot(Freezeable):
         # lockdown
         self.freeze()
 
+    def __init__(self, control, controller):
+        """
+        Constructor. Initializes the rat bot.
+        pos    : Valid 2D position within the simulation world.
+        control: Ai2Thor Controller
+        """
+        rnd.seed()
+        # simulation control panel
+        self.__ctrl__ = control
+        self.__controller__ = controller
+        # path
+        event = controller.step(dict(action='Stand'))
+        self.__path__ = []
+        self.__path__.append(self.unpack(event.metadata['agent']['position']))
+        # follow path if specified via file
+        self.freeze()
+
+    @staticmethod
+    def unpack(position):
+        return np.array([position['x'], position['z']])
+
     # -----------------------------------------------------------[ Path Control ]
 
-    def getPath(self):
+    def get_path(self):
         """
         Retrieve the rat's path data so far. The function returns an array of 2D
         positions.
@@ -141,16 +163,10 @@ class RatBot(Freezeable):
             self.__path__.append(pos_next)
             return pos_next, step
 
-    # else:
-    #	noise *= 0.5
-
-    def nextPathStep(self):
+    def next_path_step(self):
         """
         Generate the next step of the rat's movement.
         """
-        # following a path?
-        if self.__ctrl__.setup.rat.path is not None:
-            return self.followPathNodes()
         # current position & velocity/direction
         pos = self.__path__[len(self.__path__) - 1]
         pos_next = np.array([np.nan, np.nan])
@@ -160,7 +176,7 @@ class RatBot(Freezeable):
             vel = self.__gaussianWhiteNoise2D__()
         # generate next step
         while True:
-            noise = self.__gaussianWhiteNoise2D__(vel)
+            noise = self.__gaussianWhiteNoise2D__(np.array([vel[0], vel[1]]))
             mom = self.__ctrl__.setup.rat.path_mom
             step = vel * mom + noise * (1.0 - mom)
             step /= np.sqrt(np.vdot(step, step))
@@ -169,11 +185,14 @@ class RatBot(Freezeable):
             bias = self.__ctrl__.setup.rat.bias
             step += bias * (np.dot(bias, step) ** 2) * np.sign(np.dot(bias, step)) * self.__ctrl__.setup.rat.bias_s
             # check for valid step
+            step = np.array([step[0], step[1]])
             pos_next = pos + step
-            if self.__ctrl__.modules.world.validStep(pos, pos_next) == False:
+            valid_step = self.__ctrl__.modules.world.valid_step(pos, pos_next)
+            if not valid_step[0]:
                 vel *= 0.5
             else:
+                pos_next = valid_step[1][:2]
                 break
         # set and confirm
         self.__path__.append(pos_next)
-        return (pos_next, pos_next - pos)
+        return pos_next, pos_next - pos

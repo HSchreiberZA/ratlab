@@ -24,6 +24,7 @@
 
 import time
 
+import ai2thor.controller
 from OpenGL.GL import *
 from OpenGL.GLU import *
 # OpenGL
@@ -110,11 +111,11 @@ def __keyboardSpecialPress__(key, x, y):
         ctrl.options.show_overview = not ctrl.options.show_overview
 
     # F2: show/hide ratview
-    elif key == GLUT_KEY_F2 and ctrl.config.record == False:
+    elif key == GLUT_KEY_F2 and ctrl.config.record is False:
         ctrl.options.show_ratview = not ctrl.options.show_ratview
 
     # F3: show/hide progress bar
-    elif key == GLUT_KEY_F3 and ctrl.config.limit != None:
+    elif key == GLUT_KEY_F3 and ctrl.config.limit is not None:
         ctrl.options.show_progress = not ctrl.options.show_progress
 
     # F4: switch ratview size
@@ -206,11 +207,11 @@ def __display__():
     glBindTexture(GL_TEXTURE_2D, 0)
 
     # get rat's next state
-    rat_state = ctrl.modules.rat.nextPathStep()
+    rat_state = ctrl.modules.rat.next_path_step()
 
     # -----------------------------------------------[ map overview / wallcheck ]
 
-    if ctrl.options.show_overview == True or ctrl.config.run_wallcheck == True:
+    if ctrl.options.show_overview is True or ctrl.config.run_wallcheck is True:
         # opengl
         glViewport(40, 150, 720, 450)
         glMatrixMode(GL_PROJECTION)
@@ -219,16 +220,17 @@ def __display__():
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         # camera
-        limits = ctrl.setup.world.limits
+        limits = [0, 0, 60, 40]
         gluLookAt((limits[0] + limits[2]) / 2.0, -limits[3], 300,
                   (limits[0] + limits[2]) / 2.0, (limits[1] + limits[3]) / 2.0, 0,
                   0.0, 0.0, 1.0)
         # default overview render
-        if ctrl.config.run_wallcheck == False:
-            ctrl.modules.world.sketchWorld(sketch_uniform=ctrl.options.sketch_uniform)
-            ctrl.modules.world.sketchPath(ctrl.modules.rat.getPath())
-            ctrl.modules.world.sketchArrow(rat_state[0][0], rat_state[0][1], rat_state[1][0], rat_state[1][1])
+        if not ctrl.config.run_wallcheck:
+#            ctrl.modules.world.sketchWorld(sketch_uniform=ctrl.options.sketch_uniform)
+            ctrl.modules.world.sketch_path(ctrl.modules.rat.get_path())
+            ctrl.modules.world.sketch_arrow(rat_state[0][0], rat_state[0][1], rat_state[1][0], rat_state[1][1])
         # wallcheck render
+        '''
         else:
             for i, raster in enumerate([False, True]):
                 ctrl.modules.world.sketchWorld(sketch_info=True, raster=raster)
@@ -255,7 +257,7 @@ def __display__():
 
     # -----------------------------------------------------[ rat view rendering ]
 
-    if ctrl.options.show_ratview == True:
+    if ctrl.options.show_ratview:
 
         glColor(1.0, 1.0, 1.0)
 
@@ -263,11 +265,11 @@ def __display__():
         dir_n /= math.sqrt(dir_n[0] ** 2 + dir_n[1] ** 2)
         dir_a = math.asin(abs(dir_n[1])) * ctrl.setup.constants.RAD2DEG
 
-        if dir_n[0] <= 0 and dir_n[1] >= 0:
+        if dir_n[0] <= 0 <= dir_n[1]:
             dir_a = 180.0 - dir_a
         elif dir_n[0] <= 0 and dir_n[1] <= 0:
             dir_a = 180.0 + dir_a
-        elif dir_n[0] >= 0 and dir_n[1] <= 0:
+        elif dir_n[0] >= 0 >= dir_n[1]:
             dir_a = 360.0 - dir_a
 
         x = int(ctrl.defines.window_width / 2 - ctrl.setup.rat.fov[0] / 2 * ctrl.options.ratview_scale)
@@ -301,9 +303,9 @@ def __display__():
 
     ctrl.state.last_view = img.frombuffer('RGBA', (int(ctrl.setup.rat.fov[0]), int(ctrl.setup.rat.fov[1])),
                                           opengl_buffer, 'raw', 'RGBA', 0, 0)
-
+    
     # recording
-    if ctrl.config.record == True:
+    if ctrl.config.record:
 
         # save current rat view to the image sequence
         if ctrl.setup.rat.color == 'RGB':
@@ -326,7 +328,7 @@ def __display__():
     ctrl.state.step += 1
 
     # runtime limit
-    if ctrl.config.limit != None:
+    if ctrl.config.limit is not None:
 
         # print(progress)
         sys.stdout.write('\rStep ' + str(ctrl.state.step) + '/' + str(ctrl.config.limit))
@@ -352,7 +354,7 @@ def __display__():
                 print('   Rat trajectory:          \'exp_trajectory.txt\'.')
 
             print('Runtime: %dsec / %dmin' % (
-            time.time() - ctrl.state.starting_time, (time.time() - ctrl.state.starting_time) / 60.0))
+                time.time() - ctrl.state.starting_time, (time.time() - ctrl.state.starting_time) / 60.0))
 
             sys.exit()
 
@@ -361,7 +363,7 @@ def __display__():
             ctrl.options.show_overview = True
 
     # ------------------------------------------------------------[ end drawing ]
-
+    '''
     glutSwapBuffers()
 
 
@@ -495,12 +497,15 @@ def main():
     # set up core OpenGL modules
     __setupGlut__()
     __setupOpenGL__()
+    controller = ai2thor.controller.Controller()
 
     # create new world object
-    ctrl.modules.world = world.World(ctrl.setup.world)
+    #ctrl.modules.world = world.World(ctrl.setup.world)
+    ctrl.modules.world = world.NewWorld(ctrl.setup.world, controller, 'FloorPlan201', 0.1)
 
     # place rat at random initial position (rat chooses path[0] if path is given)
-    ctrl.modules.rat = ratbot.RatBot(ctrl.modules.world.randomPosition(), ctrl)
+    ctrl.modules.rat = ratbot.RatBot(ctrl, controller)
+    #ctrl.modules.rat = ratbot.RatBot(ctrl.modules.world.randomPosition(), controller)
 
     # start main loop
     ctrl.state.starting_time = time.time()
