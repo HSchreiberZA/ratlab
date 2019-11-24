@@ -23,6 +23,7 @@
 # =====================================================================[ Header ]
 
 import time
+import cv2
 
 import ai2thor.controller
 from OpenGL.GL import *
@@ -226,23 +227,8 @@ def __display__():
                   0.0, 0.0, 1.0)
         # default overview render
         if not ctrl.config.run_wallcheck:
-#            ctrl.modules.world.sketchWorld(sketch_uniform=ctrl.options.sketch_uniform)
             ctrl.modules.world.sketch_path(ctrl.modules.rat.get_path())
             ctrl.modules.world.sketch_arrow(rat_state[0][0], rat_state[0][1], rat_state[1][0], rat_state[1][1])
-        # wallcheck render
-        '''
-        else:
-            for i, raster in enumerate([False, True]):
-                ctrl.modules.world.sketchWorld(sketch_info=True, raster=raster)
-                # read frame buffer into image
-                screenshot = glReadPixels(0, 0, ctrl.defines.window_width, ctrl.defines.window_height, GL_RGBA,
-                                          GL_UNSIGNED_BYTE)
-                im = img.frombuffer('RGBA', (ctrl.defines.window_width, ctrl.defines.window_height), screenshot, 'raw',
-                                    'RGBA', 0, 0)
-                im.save('./current_experiment/wallcheck_' + ('raster' if raster == True else '') + '.png')
-            # exit
-            print('Wallcheck screenshots saved to working directory \'./current_experiment\'.')
-            sys.exit()
 
     # -----------------------------------------------------------[ progress bar ]
 
@@ -255,69 +241,13 @@ def __display__():
         glLoadIdentity()
         text.drawProgressBar(ctrl.config.limit, ctrl.state.step + 1, (-130, -250))
 
-    # -----------------------------------------------------[ rat view rendering ]
-
-    if ctrl.options.show_ratview:
-
-        glColor(1.0, 1.0, 1.0)
-
-        dir_n = numpy.array([rat_state[1][0], rat_state[1][1]])
-        dir_n /= math.sqrt(dir_n[0] ** 2 + dir_n[1] ** 2)
-        dir_a = math.asin(abs(dir_n[1])) * ctrl.setup.constants.RAD2DEG
-
-        if dir_n[0] <= 0 <= dir_n[1]:
-            dir_a = 180.0 - dir_a
-        elif dir_n[0] <= 0 and dir_n[1] <= 0:
-            dir_a = 180.0 + dir_a
-        elif dir_n[0] >= 0 >= dir_n[1]:
-            dir_a = 360.0 - dir_a
-
-        x = int(ctrl.defines.window_width / 2 - ctrl.setup.rat.fov[0] / 2 * ctrl.options.ratview_scale)
-        for i in range(int(dir_a - ctrl.setup.rat.fov[0] / 2), int(dir_a + ctrl.setup.rat.fov[0] / 2) + 1):
-            glViewport(x, 80, 1 * ctrl.options.ratview_scale, int(ctrl.setup.rat.fov[1]) * ctrl.options.ratview_scale)
-
-            glMatrixMode(GL_PROJECTION)
-            glLoadIdentity()
-            gluPerspective(ctrl.setup.rat.fov[1], 1.0 / ctrl.setup.rat.fov[1],
-                           ctrl.setup.opengl.clip_near, ctrl.setup.opengl.clip_far)
-
-            glMatrixMode(GL_MODELVIEW)
-            glLoadIdentity()
-
-            focus = [rat_state[0][0] + math.cos(i * ctrl.setup.constants.DEG2RAD) * 100.0,
-                     rat_state[0][1] + math.sin(i * ctrl.setup.constants.DEG2RAD) * 100.0,
-                     ctrl.setup.world.cam_height]
-
-            gluLookAt(rat_state[0][0], rat_state[0][1], ctrl.setup.world.cam_height,
-                      focus[0], focus[1], focus[2],
-                      0, 0, 1)
-
-            ctrl.modules.world.drawWorld(focus)
-            x += ctrl.options.ratview_scale
-
     # ---------------------------------------------------[ simulation recording ]
-
-    # read out current rat view image
-    opengl_buffer = glReadPixels(ctrl.defines.window_width / 2 - ctrl.setup.rat.fov[0] / 2 * ctrl.options.ratview_scale,
-                                 80, ctrl.setup.rat.fov[0], ctrl.setup.rat.fov[1], GL_RGBA, GL_UNSIGNED_BYTE)
-
-    ctrl.state.last_view = img.frombuffer('RGBA', (int(ctrl.setup.rat.fov[0]), int(ctrl.setup.rat.fov[1])),
-                                          opengl_buffer, 'raw', 'RGBA', 0, 0)
-    
     # recording
     if ctrl.config.record:
 
         # save current rat view to the image sequence
         if ctrl.setup.rat.color == 'RGB':
-            ctrl.state.last_view.save('./current_experiment/sequence/frame_' + str(ctrl.state.step).zfill(5) + '.png')
-        elif ctrl.setup.rat.color == 'greyscale':
-            last_view_grayscale = ctrl.state.last_view.convert('L')
-            last_view_grayscale.save('./current_experiment/sequence/frame_' + str(ctrl.state.step).zfill(5) + '.png')
-        elif ctrl.setup.rat.color == 'duplex':
-            ctrl.state.last_view.save(
-                './current_experiment/sequence_color/frame_' + str(ctrl.state.step).zfill(5) + '.png')
-            last_view_grayscale = ctrl.state.last_view.convert('L')
-            last_view_grayscale.save('./current_experiment/sequence/frame_' + str(ctrl.state.step).zfill(5) + '.png')
+            cv2.imwrite(str.format('./current_experiment/sequence/frame_{}.png', str(ctrl.state.step).zfill(5)), rat_state[2])
 
         # collect movement data
         ctrl.modules.datafile.write(str(ctrl.state.step) + ' ' +
@@ -336,12 +266,7 @@ def __display__():
 
         # save a screenshot of the final frame
         if ctrl.state.step == ctrl.config.limit:
-
-            screenshot = glReadPixels(0, 0, ctrl.defines.window_width, ctrl.defines.window_height, GL_RGBA,
-                                      GL_UNSIGNED_BYTE)
-            im = img.frombuffer('RGBA', (ctrl.defines.window_width, ctrl.defines.window_height), screenshot, 'raw',
-                                'RGBA', 0, 0)
-            im.save('./current_experiment/exp_finish.png')
+            cv2.imwrite(str.format('./current_experiment/exp_finish.png', str(ctrl.state.step).zfill(5)), rat_state[2])
 
             print(' - all done.\nExperimental data saved to folder \'./current_experiment\':')
             print('   Final simulation state:  \'exp_finish.png\'.')
@@ -363,7 +288,6 @@ def __display__():
             ctrl.options.show_overview = True
 
     # ------------------------------------------------------------[ end drawing ]
-    '''
     glutSwapBuffers()
 
 

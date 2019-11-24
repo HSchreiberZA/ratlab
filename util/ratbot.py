@@ -44,6 +44,14 @@ def_DEG2RAD = math.pi / 180.0
 np.seterr(divide='ignore')  # ignore 'division by zero' errors (occur on path reset)
 
 
+# ==============================================================[ Step Class ]
+class Step():
+    def __init__(self, is_valid, position, view):
+        self.__is_valid__ = is_valid
+        self.__position__ = position
+        self.__view__ = view
+
+
 # ==============================================================[ RatBot Class ]
 
 class RatBot(Freezeable):
@@ -170,6 +178,7 @@ class RatBot(Freezeable):
         # current position & velocity/direction
         pos = self.__path__[len(self.__path__) - 1]
         pos_next = np.array([np.nan, np.nan])
+        view = []
         if len(self.__path__) > 1:
             vel = pos - self.__path__[len(self.__path__) - 2]
         else:
@@ -188,11 +197,12 @@ class RatBot(Freezeable):
             step = np.array([step[0], step[1]])
             pos_next = pos + step
             valid_step = self.__ctrl__.modules.world.valid_step(pos, pos_next)
-            if not valid_step[0]:
+            if not valid_step.__is_valid__:
                 vel *= 0.5
             else:
-                pos_next = valid_step[1][:2]
+                pos_next = valid_step.__position__
+                view = valid_step.__view__
                 break
         # set and confirm
         self.__path__.append(pos_next)
-        return pos_next, pos_next - pos
+        return pos_next, pos_next - pos, view
