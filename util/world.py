@@ -197,6 +197,7 @@ class NewWorld:
         # FloorPlan207 is like 202
         controller.reset(floor_plan)
         controller.step(dict(action='Initialize', gridSize=grid_size))
+        self.__reachable_positions__ = self.normalize_reachable_positions()
 
     @staticmethod
     def angle_between(p1, p2):
@@ -206,19 +207,29 @@ class NewWorld:
             return 360 - (-angle)
         return angle
 
+    def normalize_reachable_positions(self):
+        """
+        Round normalized positions so that they match the steps
+        """
+        reachable_positions = self.__controller__.step(dict(action='GetReachablePositions')).metadata[
+            'reachablePositions']
+        normalized_positions = []
+        for reachable_position in reachable_positions:
+            normalized_positions.append({'x': round(reachable_position['x'], 1), 'y': reachable_position['y'],
+                                         'z': round(reachable_position['z'], 1)})
+        return normalized_positions
+
     def valid_step(self, pos, pos_new):
         dist = self.angle_between(pos, pos_new)
-        current_rotation = self.__controller__.step(dict(action='Crouch')).metadata['agent']['rotation']['y']
-
         self.__controller__.step(dict(action='Rotate', rotation=dist))
         event = self.__controller__.step(dict(action='MoveAhead'))
-        #event = self.__controller__.step(dict(action='TeleportFull', x=pos_new[0], y=0.9026567, z=pos_new[1], rotation=0, horizon=0.0))
         position_dict = event.metadata['agent']['position']
-        position = numpy.array([position_dict['x'], position_dict['z']])
-        if not event.metadata['lastActionSuccess']:
-            self.__controller__.step(dict(action='Rotate', rotation=current_rotation))
-            return False, position
-        return True, position
+
+        if position_dict in self.__reachable_positions__ and event.metadata['lastActionSuccess']:
+            position = numpy.array([position_dict['x'], position_dict['z']])
+            return True, position
+        self.__controller__.step(dict(action='Teleport', x=pos[0], y=0.9026567, z=pos[1]))
+        return False, pos
 
     def sketch_path(self, path):
         glColor(self.__ctrl__.color_rat_path)
@@ -227,7 +238,8 @@ class NewWorld:
             glVertex3f(p[0], p[1], def_MARKER_HEIGHT)
         glEnd()
 
-    def sketch_arrow(self, pos_x, pos_y, dir_x, dir_y, color=None):
+    @staticmethod
+    def sketch_arrow(pos_x, pos_y, dir_x, dir_y, color=None):
         # color
         if color is None:
             glColor(0.6, 0.0, 0.0)

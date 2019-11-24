@@ -11,6 +11,7 @@ RatLab is written in Python and uses several additional libraries. The following
 * [NumPy](http://www.numpy.org/)
 * [Python Imaging library](http://www.pythonware.com/products/pil/) (PIL)
 * [PyOpenGL](http://pyopengl.sourceforge.net/)
+* [AI2THOR](https://ai2thor.allenai.org/)
 
 RatLab includes an additional patch for MDP that uses Nvidia CUDA to speedup the SFA training phase (the model at the core of RatLab). To make use of this confirm CUDA is installed and running on your machine and follow the instructions found in the 'RatLab CUDA integration' .zip file.
 
@@ -115,3 +116,9 @@ The result of this experiment as provided by `sample.py` should look something l
 ![Results](http://i.imgur.com/N2bqy8y.png)
 
 And we can clearly see different signals be active (red) when the virtual rat is located within different arms of the maze.
+
+#### Notes
+
+1. Adjusting step size (ai2thor gridSize) is done by changing the self.rat.speed in setup.by
+1. Adjusting how the rat runs can be achieved by adjusting the parameter self.rat.path_mom in setup.py
+

@@ -90,7 +90,7 @@ class RatBot(Freezeable):
         self.__ctrl__ = control
         self.__controller__ = controller
         # path
-        event = controller.step(dict(action='Stand'))
+        event = controller.step(dict(action='Crouch'))
         self.__path__ = []
         self.__path__.append(self.unpack(event.metadata['agent']['position']))
         # follow path if specified via file
@@ -176,7 +176,7 @@ class RatBot(Freezeable):
             vel = self.__gaussianWhiteNoise2D__()
         # generate next step
         while True:
-            noise = self.__gaussianWhiteNoise2D__(np.array([vel[0], vel[1]]))
+            noise = self.__gaussianWhiteNoise2D__(vel)
             mom = self.__ctrl__.setup.rat.path_mom
             step = vel * mom + noise * (1.0 - mom)
             step /= np.sqrt(np.vdot(step, step))

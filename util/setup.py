@@ -117,11 +117,10 @@ class Setup(Freezeable):
         self.rat.fov = numpy.array([320.0, 40.0])
         self.rat.arc = 320.0
         self.rat.path_dev = 0.125
-        #self.rat.path_mom = 1.0
-        self.rat.path_mom = 0.0001
+        self.rat.path_mom = 0.55  # chaos factor
         self.rat.bias = numpy.array([0.0, 0.0])
         self.rat.bias_s = 0.0
-        self.rat.speed = 1.0
+        self.rat.speed = 0.5  # step size
         self.rat.path = None
         self.rat.path_loop = False
         self.rat.freeze()

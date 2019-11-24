@@ -501,7 +501,7 @@ def main():
 
     # create new world object
     #ctrl.modules.world = world.World(ctrl.setup.world)
-    ctrl.modules.world = world.NewWorld(ctrl.setup.world, controller, 'FloorPlan201', 0.1)
+    ctrl.modules.world = world.NewWorld(ctrl.setup.world, controller, 'FloorPlan201', ctrl.setup.rat.speed)
 
     # place rat at random initial position (rat chooses path[0] if path is given)
     ctrl.modules.rat = ratbot.RatBot(ctrl, controller)
