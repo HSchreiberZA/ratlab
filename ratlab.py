@@ -240,7 +240,7 @@ def __display__():
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         text.drawProgressBar(ctrl.config.limit, ctrl.state.step + 1, (-130, -250))
-
+    
     # ---------------------------------------------------[ simulation recording ]
     # recording
     if ctrl.config.record:
@@ -328,8 +328,6 @@ def main():
             ctrl.modules.datafile = open('./current_experiment/exp_trajectory.txt', 'w')
         elif arg == 'limit':
             ctrl.config.limit = int(sys.argv[i + 1])
-            ctrl.options.show_overview = False
-            ctrl.options.show_ratview = True
             ctrl.options.show_progress = True
 
         # world setup parameters
