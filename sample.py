@@ -27,12 +27,14 @@ import pickle
 import time
 
 # math
+import ai2thor.controller
+import cv2
 import mdp
 
 print('Running MDP version', mdp.__version__)  # , mdp.config.has_mdp, 'from', mdp.__file__
 
 # graphics
-from PIL import Image      as IMG
+from PIL import Image as IMG, Image
 from PIL import ImageDraw as IMG_DRW
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
@@ -41,7 +43,7 @@ from OpenGL.GL import *
 # ratlab modules
 sys.path.append('./util')
 from util.setup import *
-import util.world as WORLD
+import util.world as world
 
 
 # --------------------------------------------------------------------[ Control ]
@@ -59,7 +61,7 @@ class LocalControl(Freezeable):
         self.cfg.setup_file = 'exp_setup'
         self.cfg.sfa_network = None
         self.cfg.sample_order = None
-        self.cfg.verbose = False
+        self.cfg.verbose = True
         # spatial sampling
         self.cfg.sample_dir = []
         self.cfg.sample_period = None
@@ -222,7 +224,7 @@ def setupOpenGL(spatial=True):
         glutDisplayFunc(display_sampler_spatial)
     else:
         glutDisplayFunc(display_sampler_directional)
-    glutTimerFunc(1000 / 40, drawcall, 1)
+    glutTimerFunc(int(1000 / 40), drawcall, 1)
 
     # projection matrix setup w/ default viewport
     glViewport(0, 0, ctrl.defines.window_width, ctrl.defines.window_height)
@@ -362,8 +364,9 @@ def sample_directional(args):
 
 def display_sampler_spatial():
     # sampling runs
-    world_size_x = ctrl.setup.world.limits[2] - ctrl.setup.world.limits[0]
-    world_size_y = ctrl.setup.world.limits[3] - ctrl.setup.world.limits[1]
+    limits = ctrl.world.__limits__
+    world_size_x = limits[2] - limits[0]
+    world_size_y = limits[3] - limits[1]
 
     world_sample_size_x = int(world_size_x / ctrl.cfg.sample_period)
     world_sample_size_y = int(world_size_y / ctrl.cfg.sample_period)
@@ -395,50 +398,26 @@ def display_sampler_spatial():
         pos_z = ctrl.setup.world.cam_height
         cnt = 0.0
 
-        limits = ctrl.setup.world.limits
+        limits = ctrl.world.__limits__
         for pos_y in range(int(limits[1]), int(limits[3]), ctrl.cfg.sample_period):
             for pos_x in range(int(limits[0]), int(limits[2]), ctrl.cfg.sample_period):
-                if ctrl.world.validPosition(numpy.array([pos_x, pos_y])):
-
-                    # render view
-                    glutSwapBuffers()
-                    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-                    glBindTexture(GL_TEXTURE_2D, 0)
-
-                    x = 0
-                    for i in range(int(dir_a - ctrl.setup.rat.fov[0] / 2), int(dir_a + ctrl.setup.rat.fov[0] / 2)):
-                        glViewport(x, 0, 1, int(ctrl.setup.rat.fov[1]))
-
-                        glMatrixMode(GL_PROJECTION)
-                        glLoadIdentity()
-                        gluPerspective(ctrl.setup.rat.fov[1], 1.0 / ctrl.setup.rat.fov[1],
-                                       ctrl.setup.opengl.clip_near, ctrl.setup.opengl.clip_far)
-
-                        glMatrixMode(GL_MODELVIEW)
-                        glLoadIdentity()
-
-                        focus = [pos_x + math.cos(i * ctrl.setup.constants.DEG2RAD) * 100.0,
-                                 pos_y + math.sin(i * ctrl.setup.constants.DEG2RAD) * 100.0,
-                                 pos_z]
-
-                        gluLookAt(pos_x, pos_y, pos_z,
-                                  focus[0], focus[1], focus[2],
-                                  0, 0, 1)
-
-                        ctrl.world.drawWorld(focus)
-                        x += 1
-
+                teleport = ctrl.world.teleport(dir_a, numpy.array([pos_x / 10, pos_y / 10]))
+                if teleport.__is_valid__:
                     # get frame data
-                    opengl_buffer = glReadPixels(0, 0, int(ctrl.setup.rat.fov[0]), int(ctrl.setup.rat.fov[1]), GL_RGBA,
-                                                 GL_UNSIGNED_BYTE)
-                    last_frame_img = IMG.frombuffer('RGBA', (int(ctrl.setup.rat.fov[0]), int(ctrl.setup.rat.fov[1])),
-                                                    opengl_buffer, 'raw', 'RGBA', 0, 0)
-                    if ctrl.cfg.sfa_network[0].in_channel_dim == 1: last_frame_img = last_frame_img.convert('L')
-                    frame_data = last_frame_img.load()
+                    last_frame_img = teleport.__view__
+                    #if ctrl.cfg.sfa_network[0].in_channel_dim == 1:
+                    #    last_frame_img = cv2.cvtColor(last_frame_img, cv2.COLOR_BGR2GRAY)
+
+                    frame_data = cv2.resize(last_frame_img, (55, 35), interpolation=cv2.INTER_AREA)
+                    last_frame_img = cv2.cvtColor(frame_data, cv2.COLOR_BGR2GRAY)
+
+                    #cv2_im = cv2.cvtColor(last_frame_img, cv2.COLOR_BGR2RGB)
+                    frame_data = Image.fromarray(last_frame_img).load()
+                    #Image.fromarray(last_frame_img).show()
 
                     data = None
                     i = 0
-                    if ctrl.setup.rat.color == 'RGB':
+                    if ctrl.setup.rat.color != 'RGB':
                         data = numpy.zeros((1, int(ctrl.setup.rat.fov[0]) * int(ctrl.setup.rat.fov[1]) * 3),
                                            dtype=numpy.float32)  # row-vector 'matrix'
                         for y in range(0, int(ctrl.setup.rat.fov[1])):
@@ -458,14 +437,14 @@ def display_sampler_spatial():
                     # get network value
                     network_result = ctrl.cfg.sfa_network.execute(data)
                     for k in range(0, ctrl.cfg.sample_order):
-                        sample_data_raw[k, (pos_x - ctrl.setup.world.limits[0]) / ctrl.cfg.sample_period, (
-                                    pos_y - ctrl.setup.world.limits[1]) / ctrl.cfg.sample_period] = network_result[0, k]
+                        sample_data_raw[k, int((pos_x - limits[0]) / ctrl.cfg.sample_period), int((
+                                    pos_y - limits[1]) / ctrl.cfg.sample_period)] = network_result[0, k]
 
                 # mark invalid positions for blacking out as NAN
                 else:
                     for k in range(0, ctrl.cfg.sample_order):
-                        sample_data_raw[k, (pos_x - ctrl.setup.world.limits[0]) / ctrl.cfg.sample_period, (
-                                    pos_y - ctrl.setup.world.limits[1]) / ctrl.cfg.sample_period] = numpy.NAN
+                        sample_data_raw[k, int((pos_x - limits[0]) / ctrl.cfg.sample_period), int((
+                                    pos_y - limits[1]) / ctrl.cfg.sample_period)] = numpy.NAN
 
                 # update progress bar
                 cnt += 1
@@ -781,10 +760,11 @@ def main():
         printHelp()
         sys.exit()
 
+    controller = ai2thor.controller.Controller()
     # create map only?
     if 'map' in sys.argv:
         ctrl.setup = Setup('./current_experiment/exp_setup')
-        ctrl.world = WORLD.World(ctrl.setup.world)
+        ctrl.world = world.NewWorld(ctrl.setup.world, controller, 'Floorplan205', 0.1)
         createMap()
         sys.exit()
 
@@ -834,7 +814,7 @@ def main():
         setupOpenGL(spatial=False)  # sets display_sampler_directional as display loop function
 
     # replicate original world setup
-    ctrl.world = WORLD.World(ctrl.setup.world)
+    ctrl.world = world.NewWorld(ctrl.setup.world, controller, 'FloorPlan301', 0.1)
 
     # spatial sampling parameters
     if mode == 'spatial':

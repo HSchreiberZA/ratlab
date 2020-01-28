@@ -30,6 +30,7 @@ import struct
 # python image library
 from PIL import Image
 
+
 # ====================================================================[ Convert ]
 
 def convert(data_folder, data_file):
@@ -64,7 +65,7 @@ def convert(data_folder, data_file):
     space_req = float(frame.size[0] * frame.size[1] * len(img_sequence)) / (1024.0 * 1024.0)
     space_req *= color_dim
     print('Writing data to file \'%s\'. Expected size: %.1f megabytes.' % (
-    data_file, space_req))  # color values are only stored as characters)
+        data_file, space_req))  # color values are only stored as characters)
 
     # data loop
     cnt = 0.0

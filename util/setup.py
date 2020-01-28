@@ -114,8 +114,8 @@ class Setup(Freezeable):
 
         self.rat = EmptyOptionContainer()
         self.rat.color = 'RGB'
-        self.rat.fov = numpy.array([320.0, 40.0])
-        self.rat.arc = 320.0
+        self.rat.fov = numpy.array([55.0, 35.0])
+        self.rat.arc = 55.0
         self.rat.path_dev = 0.125
         self.rat.path_mom = 0.55  # chaos factor
         self.rat.bias = numpy.array([0.0, 0.0])
@@ -192,7 +192,7 @@ class Setup(Freezeable):
         f.readline()
         self.rat.color = f.readline().strip('rat.color').strip()
         s = f.readline().strip('rat.fov').split()
-        self.rat.fov = numpy.array([float(s[0]), float(s[1])])
+        self.rat.fov = numpy.array([float(55), float(35)])
         self.rat.arc = float(f.readline().strip('rat.arc'))
         self.rat.path_dev = float(f.readline().strip('rat.path_dev'))
         self.rat.path_mom = float(f.readline().strip('rat.path_mom'))

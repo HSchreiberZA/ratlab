@@ -118,8 +118,8 @@ def initNetwork(wide_fov=True, color=True, noise=False):
                                                          field_channels_xy=(
                                                          sfa_lower_layer_field_x, sfa_lower_layer_field_y),
                                                          field_spacing_xy=(
-                                                         sfa_lower_layer_field_x / 2, sfa_lower_layer_field_y / 2),
-                                                         in_channel_dim=3 if color else 1)
+                                                             int(sfa_lower_layer_field_x / 2), int(sfa_lower_layer_field_y / 2)),
+                                                         in_channel_dim=3 if color else int(1))
     # processing over-node for lower sfa layer
     sfa_node_A = mdp.nodes.SFANode(input_dim=raw_switchboard.out_channel_dim, output_dim=sfa_dim_red_factor,
                                    dtype='float32')
@@ -143,7 +143,7 @@ def initNetwork(wide_fov=True, color=True, noise=False):
     sfa_switchboard = mdp.hinet.Rectangular2dSwitchboard(
         in_channels_xy=(sfa_lower_layer_nodes_x, sfa_lower_layer_nodes_y),
         field_channels_xy=(sfa_upper_layer_field_x, sfa_upper_layer_field_y),
-        field_spacing_xy=(sfa_upper_layer_field_x / 2, sfa_upper_layer_field_y / 2),
+        field_spacing_xy=(int(sfa_upper_layer_field_x / 2), int(sfa_upper_layer_field_y / 2)),
         in_channel_dim=sfa_lower_layer_node_out)
     # processing over-node for upper sfa layer
     sfa_node_X = mdp.nodes.SFANode(input_dim=sfa_switchboard.out_channel_dim, output_dim=sfa_dim_red_factor,
@@ -179,7 +179,8 @@ def initNetwork(wide_fov=True, color=True, noise=False):
                             sfa_lower_layer,
                             sfa_switchboard,
                             sfa_upper_layer,
-                            sfa_over_node])
+                            sfa_over_node],
+                           verbose=True)
     return sfa_network
 
 
@@ -214,7 +215,7 @@ def trainNetwork(network, batch_size=None, add_ICA_layer=False, frame_override=N
             print('Warning! Given frame override value is invalid and will be ignored.')
 
     # valid batch size?
-    if batch_size == None:
+    if batch_size is None:
         batch_size = frames
     if frames % batch_size != 0:
         print('Error! batch_size does not divide the given frame count evenly!')
@@ -270,7 +271,7 @@ def trainNetwork(network, batch_size=None, add_ICA_layer=False, frame_override=N
         print('Single file processing: using full data set for single training phase.')
     else:
         print('Batch processing: training %d batches holding %d frames each.' % (
-        int(data.shape[0] / batch_size), batch_size))
+            int(data.shape[0] / batch_size), batch_size))
 
     ping = time.time()
 

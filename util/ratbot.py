@@ -25,7 +25,7 @@
 # math
 import math
 import random as rnd
-import ai2thor.controller
+import cv2
 
 import numpy  as np
 
@@ -45,7 +45,7 @@ np.seterr(divide='ignore')  # ignore 'division by zero' errors (occur on path re
 
 
 # ==============================================================[ Step Class ]
-class Step():
+class Step:
     def __init__(self, is_valid, position, view):
         self.__is_valid__ = is_valid
         self.__position__ = position
@@ -60,32 +60,6 @@ class RatBot(Freezeable):
     """
 
     # ----------------------------------------------------------[ Construction ]
-
-    def __init2__(self, pos, control):
-        """
-        Constructor. Initializes the rat bot.
-        pos    : Valid 2D position within the simulation world.
-        control: Simulation control panel. Defined in ratlab.py.
-        """
-        rnd.seed()
-        # simulation control panel
-        self.__ctrl__ = control
-        # path
-        self.__path__ = []
-        self.__path__.append(pos)
-        # follow path if specified via file
-        if control.setup.rat.path is not None:
-            f = open('./current_experiment/' + control.setup.rat.path)
-            control.setup.rat.path = np.zeros([sum(1 for l in f), 2])
-            f.seek(0)
-            for i, l in enumerate(f):
-                c = l.split()
-                control.setup.rat.path[i] = np.array([c[0], c[1]])
-            self.__path_index__ = 1
-            # reset starting position
-            self.__path__[0] = control.setup.rat.path[0]
-        # lockdown
-        self.freeze()
 
     def __init__(self, control, controller):
         """
@@ -195,13 +169,14 @@ class RatBot(Freezeable):
             step += bias * (np.dot(bias, step) ** 2) * np.sign(np.dot(bias, step)) * self.__ctrl__.setup.rat.bias_s
             # check for valid step
             step = np.array([step[0], step[1]])
-            pos_next = pos + step
+            pos_next = np.round(pos + step, 1)
             valid_step = self.__ctrl__.modules.world.valid_step(pos, pos_next)
             if not valid_step.__is_valid__:
                 vel *= 0.5
             else:
                 pos_next = valid_step.__position__
-                view = valid_step.__view__
+                resized = cv2.resize(valid_step.__view__, (55, 35), interpolation=cv2.INTER_AREA)
+                view = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
                 break
         # set and confirm
         self.__path__.append(pos_next)

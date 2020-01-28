@@ -45,7 +45,6 @@ from util.setup import *
 from util.opengl_text import *
 from util.ratbot import Step
 
-
 # defines
 def_MARKER_HEIGHT = 0.1  # default height of drawn debug markers
 def_CUSTOM_HEIGHT = 12.0  # default height for walls in custom mazes ### adapted for epuck scenario atm
@@ -57,7 +56,7 @@ class NewWorld:
     def __init__(self, control, controller, floor_plan, grid_size):
         self.__controller__ = controller
         self.__ctrl__ = control
-        controller.start(player_screen_width=2400)
+        controller.start()
 
         # FloorPlan203 == 208
         # FloorPlan201
@@ -68,7 +67,7 @@ class NewWorld:
         # FloorPlan207 is like 202
         controller.reset(floor_plan)
         controller.step(dict(action='Initialize', gridSize=grid_size))
-        self.__reachable_positions__ = self.normalize_reachable_positions()
+        self.__reachable_positions__, self.__limits__ = self.normalize_reachable_positions()
 
     @staticmethod
     def angle_between(p1, p2):
@@ -80,27 +79,38 @@ class NewWorld:
 
     def normalize_reachable_positions(self):
         """
-        Round normalized positions so that they match the steps
+            Round normalized positions so that they match the steps
         """
         reachable_positions = self.__controller__.step(dict(action='GetReachablePositions')).metadata[
             'reachablePositions']
         normalized_positions = []
+        limits = numpy.zeros(4)
         for reachable_position in reachable_positions:
-            normalized_positions.append({'x': round(reachable_position['x'], 1), 'y': reachable_position['y'],
-                                         'z': round(reachable_position['z'], 1)})
-        return normalized_positions
+            normalized_positions.append({'x': round(reachable_position['x'], 1), 'z': round(reachable_position['z'], 1)})
+            if round(reachable_position['x'], 1) < limits[0]:
+                limits[0] = round(reachable_position['x'], 1)
+            if round(reachable_position['x'], 1) > limits[2]:
+                limits[2] = round(reachable_position['x'], 1)
+            if round(reachable_position['z'], 1) < limits[1]:
+                limits[1] = round(reachable_position['z'], 1)
+            if round(reachable_position['z'], 1) > limits[3]:
+                limits[3] = round(reachable_position['z'], 1)
+        return normalized_positions, numpy.array(limits * 10).astype(int)
 
     def valid_step(self, pos, pos_new):
         dist = self.angle_between(pos, pos_new)
         self.__controller__.step(dict(action='Rotate', rotation=dist))
-        event = self.__controller__.step(dict(action='MoveAhead'))
-        position_dict = event.metadata['agent']['position']
+        position_dict = {'x': pos_new[0], 'z': pos_new[1]}
 
-        if position_dict in self.__reachable_positions__ and event.metadata['lastActionSuccess']:
-            position = numpy.array([position_dict['x'], position_dict['z']])
-            return Step(True, position, event.cv2img)
-        self.__controller__.step(dict(action='Teleport', x=pos[0], y=0.9026567, z=pos[1]))
-        return Step(False, pos, event.cv2img)
+        if position_dict in self.__reachable_positions__:
+            return self.teleport(dist, pos_new)
+        return Step(False, pos, None)
+
+    def teleport(self, dir, pos_new):
+        #self.__controller__.step(dict(action='Rotate', rotation=dir))
+        tele = self.__controller__.step(dict(action='TeleportFull', x=pos_new[0], y=0.9026567, z=pos_new[1], rotation=dir, horizon=0.0))
+        event = self.__controller__.step(dict(action='Crouch'))
+        return Step(tele.metadata['lastActionSuccess'] is True, pos_new, event.cv2img)
 
     def sketch_path(self, path):
         glColor(self.__ctrl__.color_rat_path)
